@@ -1,0 +1,11 @@
+pare.py -t full_coding_iqtree_concat.cf.rooted.tree -o min-spec-paring-concat-exempt --overwrite -i 30 -e concat-exempt-branches.txt -g 50
+# Concat
+
+pare.py -t full_coding_iqtree_astral.cf.rooted.tree -o min-spec-paring-astral-exempt --overwrite -i 30 -e astral-exempt-branches.txt -g 50
+# ASTRAL
+
+time -p find . -type f -name "*.treefile" -not -name "*.rooted.treefile" | while read FILE; do newfile="$(echo ${FILE} | sed -e 's/.treefile/.pared.treefile/g')" ; nw_prune -f "${FILE}" /mnt/beegfs/gt156213e/murinae-seq/04-Phylo-scripts/tree-paring/min-spec-paring-astral-exempt/all-pruned-tips.txt > "${newfile}"; done
+# Pare gene trees to match pared species tree
+
+time -p find . -type f -name "*.treefile" -not -name "*.rooted.treefile" -not -name "*.pared.treefile" | while read FILE; do newfile="$(echo ${FILE} | sed -e 's/.treefile/.morphometrics.treefile/g')" ; nw_prune -v -f "${FILE}" /mnt/beegfs/gt156213e/murinae-seq/04-Phylo-scripts/morphometrics-tips.txt > "${newfile}"; done
+# Pare gene trees to match morphometrics species tree
