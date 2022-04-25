@@ -1,2 +1,4 @@
+*.pyc
+lib/__pycache__/
 *test*
 *.code-workspace
