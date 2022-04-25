@@ -27,7 +27,7 @@ def init():
     globs_init = {
         'version' : 'Beta 1.0',
         'releasedate' : "October 2021",
-        'authors' : "Jeffrey Good, Gregg Thomas",
+        'authors' : "Jeff Good, Gregg Thomas",
         'doi' : '',
         'http' : '',
         'github' : '',
@@ -41,14 +41,23 @@ def init():
         'call' : "",
         # Script call info
 
-        'tree-input' : False,
-        'tree-input-type' : False,
-        'orig-tree-str' : False,
-        'tree-dict' : False,
-        'labeled-tree-str' : False,
+        'st-input' : False,
+        'st-input-type' : False,
+        'orig-st-str' : False,
+        'st-dict' : False,
+        'labeled-st-str' : False,
         'tips' : False,
+        'num-tips' : False,
+        'num-internals' : False,
         'root' : False,
-        # Tree info
+        # Species tree info
+
+        'gt-input' : False,
+        'gt-input-empty' : 0,
+        'gt-input-skipped' : 0,
+        'gt-init' : {},
+        'gt-current' : False,
+        # Gene tree input file
 
         'exempt-file' : False,
         'exempt-branches' : [],

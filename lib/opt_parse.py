@@ -24,7 +24,8 @@ def optParse(globs):
 
     parser = argparse.ArgumentParser(description="Heuristic tree paring");
 
-    parser.add_argument("-t", dest="tree_input", help="A file or a string containing a single rooted, Newick formatted tree. REQUIRED", default=False);
+    parser.add_argument("-st", dest="st_input", help="A file or a string containing a single rooted, Newick formatted tree. REQUIRED", default=False);
+    parser.add_argument("-gt", dest="gt_input", help="A file containing many rooted, Newick formatted gene trees, one per line. REQUIRED", default=False);
     # Input
 
     parser.add_argument("-o", dest="out_dest", help="Desired output directory. This will be created for you if it doesn't exist. Default: pare-[date]-[time]", default=False);
@@ -38,8 +39,11 @@ def optParse(globs):
     parser.add_argument("-e", dest="exempt", help="A file containing branches to be exempt from pruning (note that they can still be PARED), one branch per line defined as internal node labels with --labeltree or 2 tips that descend from that branch (e.g. 'spec1 spec2'). Lines in file starting with '#' are ignored.", default=False);
     # User params
 
+    # --gcf to calc gcf and exit
+    # --uselabels to use labels in tree as support
     parser.add_argument("--labeltree", dest="labeltree", help="Just read the tree from the input, label the internal nodes, print, and exit.", action="store_true");
     parser.add_argument("--overwrite", dest="ow_flag", help="Set this to overwrite existing files.", action="store_true", default=False);
+    parser.add_argument("--appendlog", dest="append_log_flag", help="Set this to keep the old log file even if --overwrite is specified. New log information will instead be appended to the previous log file.", action="store_true", default=False);
     # User options
 
     parser.add_argument("--info", dest="info_flag", help="Print some meta information about the program and exit. No other options required.", action="store_true", default=False);
@@ -74,47 +78,52 @@ def optParse(globs):
     if args.labeltree:
         globs['label-tree'] = True;
 
-    if not args.tree_input:
-        CORE.errorOut("OP1", "A tree must be provided with -t.", globs);
+    if not args.st_input:
+        CORE.errorOut("OP1", "A tree must be provided with -st.", globs);
     # Check that some input is provided to the tree option
 
-    if os.path.isfile(args.tree_input):
-        globs['tree-input-type'] = "file";
+    if os.path.isfile(args.st_input):
+        globs['st-input-type'] = "file";
     else:
-        globs['tree-input-type'] = "string";
+        globs['st-input-type'] = "string";
     # Check whether the tree input is a file or a string
 
-    globs['tree-input'] = args.tree_input;
+    globs['st-input'] = args.st_input;
     # Set the tree input param
 
     if not globs['label-tree']:
+        if not args.gt_input:
+            CORE.errorOut("OP2", "A set of gene trees must be provided with -gt", globs);
+        globs['gt-input'] = args.gt_input;
+        # Check that some input is provided to the gene tree option
+
         if args.bl_percentile:
             if not CORE.isPosInt(args.bl_percentile, maxval=100):
-                CORE.errorOut("OP2", "The lower branch length percentile (-b) must be an integer between 0 and 100.", globs);
+                CORE.errorOut("OP3", "The lower branch length percentile (-b) must be an integer between 0 and 100.", globs);
             globs['bl-percentile'] = args.bl_percentile;
         # Check and set the branch length percentile option
 
         if args.gcf_threshold:
             if not CORE.isPosInt(args.gcf_threshold, maxval=100):
-                CORE.errorOut("OP3", "The gCF threshold (-g) must be an integer between 0 and 100.", globs);
+                CORE.errorOut("OP4", "The gCF threshold (-g) must be an integer between 0 and 100.", globs);
             globs['gcf-threshold'] = args.gcf_threshold;
         # Check and set the gcf threshold option
 
         if args.max_iters:
             if not CORE.isPosInt(args.max_iters):
-                CORE.errorOut("OP4", "The maximum number of paring iterations (-i) must be a positive integer.", globs);
+                CORE.errorOut("OP5", "The maximum number of paring iterations (-i) must be a positive integer.", globs);
             globs['max-iterations'] = args.max_iters;
         # Check and set the max iteration option
 
         if args.total_max_spec:
             if not CORE.isPosInt(args.total_max_spec):
-                CORE.errorOut("OP5", "The total maximum number of species to prune (-s) must be a positive integer.", globs);
+                CORE.errorOut("OP6", "The total maximum number of species to prune (-s) must be a positive integer.", globs);
             globs['total-max-spec'] = args.total_max_spec;
         # Check and set the total max number of species to remove
 
         if args.branch_max_spec:
             if not CORE.isPosInt(args.branch_max_spec):
-                CORE.errorOut("OP5", "The maximum number of species to prune per branch (-b) must be a positive integer.", globs);
+                CORE.errorOut("OP7", "The maximum number of species to prune per branch (-b) must be a positive integer.", globs);
             globs['branch-max-spec'] = args.branch_max_spec;
         # Check and set the max number of species to remove for a single branch
 
@@ -131,7 +140,7 @@ def optParse(globs):
         # Check and set the branch length percentile option
 
         if not globs['overwrite'] and os.path.exists(globs['outdir']):
-            CORE.errorOut("OP6", "Output directory already exists: " + globs['outdir'] + ". Specify new directory name OR set --overwrite to overwrite all files in that directory.", globs);
+            CORE.errorOut("OP8", "Output directory already exists: " + globs['outdir'] + ". Specify new directory name OR set --overwrite to overwrite all files in that directory.", globs);
         if not os.path.isdir(globs['outdir']) and not globs['norun'] and not globs['info']:
             os.makedirs(globs['outdir']);
         # Main output dir
@@ -139,6 +148,13 @@ def optParse(globs):
         globs['run-name'] = os.path.basename(os.path.normpath(globs['outdir']));
         globs['logfilename'] = os.path.join(globs['outdir'], globs['run-name'] + ".log");
         # Log file
+
+        if not args.append_log_flag and not globs['norun']:
+            logfile = open(globs['logfilename'], "w");
+            logfile.write("");
+            logfile.close();
+        # Prep the logfile to be overwritten
+
     else:
         globs['log-v'] = -1;
 
@@ -162,7 +178,7 @@ def startProg(globs):
     print("#");
     CORE.printWrite(globs['logfilename'], globs['log-v'], "# Tree pruning with heuristic metrics.");
     CORE.printWrite(globs['logfilename'], globs['log-v'], "# Version " + globs['version'] + " released on " + globs['releasedate']);
-    CORE.printWrite(globs['logfilename'], globs['log-v'], "# pare was developed by " + globs['authors']);
+    CORE.printWrite(globs['logfilename'], globs['log-v'], "# bonsai was developed by " + globs['authors']);
     #CORE.printWrite(globs['logfilename'], globs['log-v'], "# Citation:      " + globs['doi']);
     #CORE.printWrite(globs['logfilename'], globs['log-v'], "# Website:       " + globs['http']);
     #CORE.printWrite(globs['logfilename'], globs['log-v'], "# Report issues: " + globs['github']);
@@ -181,15 +197,16 @@ def startProg(globs):
     opt_pad = 30;
     CORE.printWrite(globs['logfilename'], globs['log-v'], "# " + "-" * 125);
     CORE.printWrite(globs['logfilename'], globs['log-v'], "# INPUT/OUTPUT INFO:");
-    CORE.printWrite(globs['logfilename'], globs['log-v'], CORE.spacedOut("# Tree input type:", pad) + globs['tree-input-type']);
-    if globs['tree-input-type'] == "file":
-        CORE.printWrite(globs['logfilename'], globs['log-v'], CORE.spacedOut("# Tree file", pad) + globs['tree-input']);
+    CORE.printWrite(globs['logfilename'], globs['log-v'], CORE.spacedOut("# Species tree input type:", pad) + globs['st-input-type']);
+    if globs['st-input-type'] == "file":
+        CORE.printWrite(globs['logfilename'], globs['log-v'], CORE.spacedOut("# Species tree file", pad) + globs['st-input']);
 
     if globs['label-tree']:
         print("\n--labeltree SET. READING TREE AND EXITING.\n");
         return;
     # If --labeltree is set, print a message and return.
 
+    CORE.printWrite(globs['logfilename'], globs['log-v'], CORE.spacedOut("# Gene tree file", pad) + globs['gt-input']);
     CORE.printWrite(globs['logfilename'], globs['log-v'], CORE.spacedOut("# Output directory:", pad) + globs['outdir']);
     CORE.printWrite(globs['logfilename'], globs['log-v'], CORE.spacedOut("# Log file:", pad) + os.path.basename(globs['logfilename']));
     # Input/Output
