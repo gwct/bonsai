@@ -137,19 +137,25 @@ def getDateTime():
 
 #############################################################################
 
-def isPosInt(numstr, maxval=False):
+def mean(data):
+# Calculates and returns the mean of a list of numbers.
+    return sum(data) / len(data);
+
+#############################################################################
+
+def isPosInt(numstr, default=False, minval=1, maxval=False):
 # Check if a string is a positive integer
     try:
         num = int(numstr);
     except:
-        return False;
+        return default;
 
-    if num < 0:
-        return False;
+    if num < minval:
+        return default;
     elif maxval and num > maxval:
-        return False;
+        return default;
     else:
-        return True;
+        return num;
 
 #############################################################################
 
@@ -191,6 +197,8 @@ def spacedOut(string, totlen, sep=" "):
 
 def report_step(globs, step, step_start_time, step_status, start=False, full_update=False):
 # Uses psutil to gather memory and time info between steps and print them to the screen.
+
+    #os.terminal_size(columns=80, lines=24)
 
     if not globs['quiet']:
         dashes = 150

@@ -44,20 +44,55 @@ def init():
         'st-input' : False,
         'st-input-type' : False,
         'orig-st-str' : False,
-        'st-dict' : False,
-        'labeled-st-str' : False,
-        'tips' : False,
-        'num-tips' : False,
-        'num-internals' : False,
-        'root' : False,
+        'st' : False,
+        'use-labels' : False,
+        'st-final-file' : False,
         # Species tree info
 
         'gt-input' : False,
         'gt-input-empty' : 0,
         'gt-input-skipped' : 0,
-        'gt-init' : {},
+        'gts' : {},
         'gt-current' : False,
-        # Gene tree input file
+        # Gene tree params
+
+        'aln-dir' : False,
+        'alns' : False,
+        'seq-compression' : False,
+        'num-alns' : False,
+        'aln-skip-chars' : ["-", "N", "n"],
+        'aln-stats' : {},
+        'aln-stats-pruned' : {},
+        'aln-stat-file' : False,
+        'aln-stat-prune-file' : False,
+        'aln-pool' : False,
+        'aln-pool-prune' : False,
+        # Alignment params
+        
+        'cf-only' : False,
+        'gcf-dict' : {},
+        'scf-dict' : {},
+        'scf-quartets' : False,
+        'scf-pool' : False,
+        'scf-pool-prune' : False,
+        'seed' : False,
+        'st-cf-tree-file' : False,
+        'st-cf-stat-file' : False,
+        'st-cf-stat-prune-file' : False,
+        # CF options
+
+        #'count-only' : False,
+        'topo-count-file' : False,
+        'topo-count-pruned-file' : False,
+        # Topology counting options
+
+        'prune-file' : False,
+        'prune-branches' : [],
+        'prune-clades' : [],
+        'prune-st-file' : False,
+        'prune-gt-file' : False,
+        'prune-aln-dir' : False,
+        # Specified branches to prune
 
         'exempt-file' : False,
         'exempt-branches' : [],
@@ -82,8 +117,8 @@ def init():
         # Stopping conditions
 
         'outdir' : '',
-        'run-name' : 'pare',
-        'logfilename' : 'pare.errlog',
+        'run-name' : 'bonsai',
+        'logfilename' : 'bonsai.errlog',
         'logdir' : '',
         'overwrite' : False,
         # I/O options
@@ -94,6 +129,7 @@ def init():
         'quiet' : False,
         # Other user options
 
+        'num-procs' : 1,
         'pad' : 82,
         'endprog' : False,
         'warnings' : 0,
@@ -107,11 +143,12 @@ def init():
         'qstats' : False,
         'norun' : False,
         'debug' : False,
+        'debug-tree' : False,
         'nolog' : False,
         # Internal stuff
     }
 
-    globs_init['logfilename'] = "pare-" + globs_init['startdatetime'] + ".errlog";
+    globs_init['logfilename'] = "bonsai-" + globs_init['startdatetime'] + ".errlog";
     # Add the runtime to the error log file name.
 
     globs = StrictDict(globs_init);

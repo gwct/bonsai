@@ -13,35 +13,17 @@ import lib.tree as TREE
 #############################################################################
 
 def pare(globs, cur_tree, iteration, debug=False):
-    #debug=True;
-    if debug:
-        print();
-        print("CUR TREE: ", cur_tree);
 
-    cur_tree_dict, cur_labeled_tree, cur_root = TREE.treeParse(cur_tree);
     if debug:
-        print("CUR TREE DICT: ", cur_tree_dict)
-    cur_tree_dict, bls, na_bl_spec = TREE.adjustTreeDict(cur_tree_dict, cur_root);
-    if debug:
-        print("CUR TREE DICT: ", cur_tree_dict)
-    # Parse the tree string and do some extra manipulation of the tree dict
+        cur_tree.showAttrib("length", "label");
 
-    cur_bl_tree = TREE.addBranchLength(cur_labeled_tree, cur_tree_dict);
-    if debug:
-        print("CUR BL TREE: ", cur_bl_tree);
-        print("--------");
-    # Add branch lengths back to the labeled tree string
+    cur_tree.subtree = cur_tree.genSubtrees();
+    cur_tree.tree_str = cur_tree.subtree[cur_tree.root];
 
-    if iteration == 1:
-        no_tip_bl_tree = cur_bl_tree;
-        for n in cur_tree_dict:
-            if cur_tree_dict[n][2] != "tip":
-                continue;
-            no_tip_bl_tree = re.sub(n + ":0.0[\)]", n + ")", no_tip_bl_tree);
-            no_tip_bl_tree = re.sub(n + ":0.0,", n + ",", no_tip_bl_tree);
-        globs['iter-trees'].append(no_tip_bl_tree);
-    # For the first iteration, add the original tree to the global list here so it
-    # is the same format as the others
+    cur_tree.bl = { n : float(cur_tree.bl[n]) if cur_tree.bl[n] != "NA" else 0.0 for n in cur_tree.bl };
+    cur_tree.label = { n : float(cur_tree.label[n]) if cur_tree.label[n] != "NA" else 0.0 for n in cur_tree.label };
+
+    bls = [ cur_tree.bl[node] for node in cur_tree.internals if node != cur_tree.root ];
 
     ####################
 
@@ -60,31 +42,28 @@ def pare(globs, cur_tree, iteration, debug=False):
     # Keep track of both the branches that will be pared and the species
     # descending from those branches that will be pruned
 
-    criteria = "min-spec";
+    criteria = "max-gcf";
     if criteria not in ["deterministic", "random", "min-spec", "max-gcf"]:
         sys.exit("\n\nINTERNAL: Invalid clade selection criteria specified: " + criteria + "\n\n");
     # One of: deterministic, random, min-spec, max-gcf
 
-    for n in cur_tree_dict:
-        if cur_tree_dict[n][2] in ['root', 'tip']:
+    for n in cur_tree.internals:
+        if n == cur_tree.root:
             continue;
         # Skip tips and the root when getting branches to pare
         ## TODO: Consider tips for non-Astral trees?
 
-        if cur_tree_dict[n][0] < cur_bl_threshold and cur_tree_dict[n][3] < globs['gcf-threshold']:
+        if cur_tree.bl[n] < cur_bl_threshold and cur_tree.label[n] < globs['gcf-threshold']:
         # If the branch length of the current node is lower than both the bl threshold and the gcf threshold, select
         # species to pare
 
-            cur_desc = TREE.getDesc(n, cur_tree_dict);
-            # Get the two descendant nodes of the node to pare
-
-            clade1 = TREE.getClade(cur_desc[0], cur_tree_dict);
-            clade2 = TREE.getClade(cur_desc[1], cur_tree_dict);
+            clade1 = cur_tree.getClade(cur_tree.desc[n][0]);
+            clade2 = cur_tree.getClade(cur_tree.desc[n][1]);
             # Get all species in the clades descending from the current descendants
 
             if criteria == "deterministic":
                 cur_prune_clade = clade1;
-                cur_prune_node = cur_desc[0];
+                cur_prune_node = cur_tree.desc[n][0];
                 prune_index = 0;
                 # Variables to keep track of the pruned branch
             # Deterministic pruning (good for debugging)
@@ -95,10 +74,10 @@ def pare(globs, cur_tree, iteration, debug=False):
                 cur_prune_clade = random.choice([clade1, clade2]);
                 
                 if cur_prune_clade == clade1:
-                    cur_prune_node = cur_desc[0];
+                    cur_prune_node = cur_tree.desc[n][0];
                     prune_index = 0;
                 else:
-                    cur_prune_index = cur_desc[1];
+                    cur_prune_node = cur_tree.desc[n][1];
                     prune_index = 1;
                 # Variables to keep track of the pruned branch
             # Randomly choose one of the clades to pare
@@ -108,11 +87,11 @@ def pare(globs, cur_tree, iteration, debug=False):
             elif criteria == "min-spec":
                 if len(clade1) <= len(clade2):
                     cur_prune_clade = clade1;
-                    cur_prune_node = cur_desc[0];
+                    cur_prune_node = cur_tree.desc[n][0];
                     prune_index = 0;
                 else:
                     cur_prune_clade = clade2;
-                    cur_prune_node = cur_desc[1];
+                    cur_prune_node = cur_tree.desc[n][1];
                     prune_index = 1;
                 # Variables to keep track of the pruned branch
             # Minimize species removed
@@ -126,36 +105,43 @@ def pare(globs, cur_tree, iteration, debug=False):
                 for d in [0,1]:
                 # Loop through both descendant nodes
 
+                    cur_desc = cur_tree.desc[n][d];
+
                     if debug:
-                        print("CUR DESC: ", cur_desc[d]);
-                        print(cur_tree_dict[cur_desc[d]]);
+                        print("CUR DESC: ", cur_desc);
                     # Debug statements
 
-                    if cur_tree_dict[cur_desc[d]][2] != 'tip':
+                    if cur_tree.type[cur_desc] != 'tip':
                     # If the tree isn't a tip, get gcfs
 
                         cur_gcfs = [];
                         # The list of subtrees for the current descendant node
 
-                        cur_subtree = TREE.getSubtree(cur_desc[d], cur_bl_tree);
-                        cur_subtree = re.sub("<[\d]+>_", "", cur_subtree);
-                        if debug:
-                            print("CUR SUBTREE: ", cur_subtree);
-                        # Get the subtree descending from the current descendant node and remove
-                        # the previous labels
+                        cur_clade = cur_tree.getClade(cur_desc, full=True);
+                        for subtree_node in cur_clade:
+                            if cur_tree.type[subtree_node] != "tip":
+                                cur_gcfs.append(cur_tree.label[subtree_node]);
 
-                        subtree_dict, labeled_subtree, subtree_root = TREE.treeParse(cur_subtree);
-                        # Parse the subtree
+                        # cur_subtree_str = cur_tree.subtree[cur_desc];
+                        # cur_subtree_str = re.sub("<[\d]+>_", "", cur_subtree_str);
+                        # if debug:
+                        #     print("CUR SUBTREE: ", cur_subtree_str);
+                        # # Get the subtree descending from the current descendant node and remove
+                        # # the previous labels
 
-                        for sub_n in subtree_dict:
-                            if subtree_dict[sub_n][3] not in ["NA", ""]:
-                                cur_gcfs.append(float(subtree_dict[sub_n][3]));
-                        # For every node in the subtree, if there is a gcf add it to the current list of gcfs
+                        # cur_subtree = TREE.Tree(cur_subtree_str);
+                        # # Parse the subtree
 
-                        cur_gcfs.append(cur_tree_dict[cur_desc[d]][3]);
+                        # for sub_n in cur_subtree.internals:
+                        #     if cur_subtree.label[sub_n] not in ["NA", ""]:
+                        #         cur_gcfs.append(float(cur_subtree.label[sub_n]));
+                        # # For every node in the subtree, if there is a gcf add it to the current list of gcfs
+
+                        cur_gcfs.append(cur_tree.label[cur_desc]);
                         # Also add the gcf of the current descendant itself to the list of gcfs
 
                         gcfs.append(cur_gcfs);
+
                         if debug:
                             print("CUR GCFS: ", cur_gcfs);
                         # Add the current list of gcfs to the list of lists of gcfs
@@ -167,21 +153,21 @@ def pare(globs, cur_tree, iteration, debug=False):
                 ## Descendant loop
 
                 avg_gcfs = [];
-                for gcf in gcfs:
-                    avg_gcfs.append(sum(gcf) / len(gcf));
+                for gcf_list in gcfs:
+                    avg_gcfs.append(CORE.mean(gcf_list));
                 if debug:
                     print("AVG GCFS: ", avg_gcfs);
                 # Average the gcfs from both subtrees
 
                 if avg_gcfs[0] <= avg_gcfs[1]:
                     if debug:
-                        print("HI")
+                        print("HI");
                     cur_prune_clade = clade1;
-                    cur_prune_node = cur_desc[0];
+                    cur_prune_node = cur_tree.desc[n][0];
                     prune_index = 0;
                 else:
                     cur_prune_clade = clade2;
-                    cur_prune_node = cur_desc[1];
+                    cur_prune_node = cur_tree.desc[n][1];
                     prune_index = 1;
                 # Variables to keep track of the pruned branch
                 if debug:
@@ -224,8 +210,8 @@ def pare(globs, cur_tree, iteration, debug=False):
             # If there is a clade to prune
             
                 num_spec_to_pare = len(cur_prune_clade);
-                if debug:
-                    print(num_spec_to_pare);
+                # if debug:
+                #     print(num_spec_to_pare);
                 # The number of species to pare
 
                 if num_spec_to_pare <= globs['branch-max-spec']:
@@ -260,6 +246,7 @@ def pare(globs, cur_tree, iteration, debug=False):
     # the iteration here and exit to main
 
     if debug:
+        print("BRANCHES TO PRUNE: ", branches_to_pare);
         print("SPECIES TO PRUNE: ", spec_to_prune);
         print("# SPECIES TO PRUNE: ", len(spec_to_prune));
         print("--------");
@@ -277,129 +264,47 @@ def pare(globs, cur_tree, iteration, debug=False):
 
     ####################
 
-    num_pruned = 0;
-    #to_pare = ["Mallomys_rothschildi_ABTC47402", "Abeomelomys_sevia_KUM161018"]
-    for n in spec_to_prune:
-        if debug:
-            #n = "Zyzomys_pedunculatus_Z34925";
-            #n = "Mylomys_dybowskii_MNHN1997072";
-            #n = "Abeomelomys_sevia_KUM161018";
-            # if iteration == 2:
-            #     n = "Bunomys_chrysocomus_JAE4867";
-            print("SPEC TO PRUNE:", n);
-            print(cur_tree_dict[n])
-            print("--------");
-        
-        if n not in cur_tree_dict:
-            print(n);
-            print(cur_labeled_tree);
-            print(cur_tree_dict);
-            sys.exit("SPECIES NOT FOUND IN DICT");
-        # A check... need to make better
+    pruned_tree_str = cur_tree.Prune(spec_to_prune);
 
-        anc = cur_tree_dict[n][1];
-        anc_supp = cur_tree_dict[anc][3];
-        anc_bl = cur_tree_dict[anc][0];
-        if debug:
-            print("ANCESTOR OF NODE TO PARE: ", anc);
-            print(cur_tree_dict[anc]);
-            print("--------");
-        # Get info about the ancestor of the species to prune
-
-        anc_desc = TREE.getDesc(anc, cur_tree_dict);
-        sis = [ d for d in anc_desc if d != n ][0];
-        if debug:
-            print("SISTER OF NODE TO PARE: ", sis);
-            print(cur_tree_dict[sis]);
-            print("--------");
-        sis_bl = cur_tree_dict[sis][0];
-        if sis_bl == "NA":
-            sis_bl = 0.0;
-        sis_supp = cur_tree_dict[sis][3];
-        # Get info about the sister of the species to prune by checking the
-        # other descendant of the ancestor
-
-        cur_subtree = TREE.getSubtree(anc, cur_bl_tree);
-        cur_subtree += anc + "_" + str(anc_supp) + ":" + str(anc_bl);
-        if debug:
-            print("SUBTREE AT ANCESTOR: ", cur_subtree);
-            print("--------");
-        # Get the subtree of the ancestor and ad the ancestral node to it
-
-        sis_subtree = TREE.getSubtree(sis, cur_bl_tree);
-        if debug:
-            print("SUBTREE AT SISTER: ", sis_subtree);
-            print("--------");
-        # Get the subtree of the sister
-
-        new_bl = anc_bl + sis_bl;
-        # After removing the current species, the new branch length of the combined anc and sis
-        # branch will be their sum
-
-        if cur_tree_dict[sis][2] == 'tip':
-            new_subtree = sis + ":" + str(new_bl);
-        else:
-            new_subtree = sis_subtree + sis + "_" + str(sis_supp) + ":" + str(new_bl);
-        if debug:
-            print("NEW SUBTREE: ", new_subtree);
-            print("--------");
-        # Make the new subtree to replace the current ancestral one. If the sister is
-        # a tip, then this is just the sister label with the new branch length.
-        # If the sister is a clade, then this is the sister subtree with the sister added
-        # on with the new branch length
-
-        new_tree = cur_bl_tree.replace(cur_subtree, new_subtree);
-        new_tree = re.sub("<[\d]+>_", "", new_tree);
-        new_tree = re.sub("<[\d]+>", "", new_tree);
-        if debug:
-            print("NEW TREE: " + new_tree);
-            print("--------");
-        # Replace the old subtree with the new one and remove the internal node labels from treeParse
-
-        cur_tree_dict, cur_labeled_tree, cur_root = TREE.treeParse(new_tree);
-        cur_tree_dict, bls, na = TREE.adjustTreeDict(cur_tree_dict, cur_root);
-        cur_bl_tree = TREE.addBranchLength(cur_labeled_tree, cur_tree_dict);
-        if debug:
-            print("NEW PARSED BL TREE: ", cur_bl_tree);
-            print("--------");
-        # Parse the new tree and add the branch lengths back on
-
-        num_pruned += 1;
-        # Increment the number of tips pruned
-    # Tip pruning block
-    ####################
-
-    if debug:
-        print("PARED TREE: ", cur_bl_tree);
-        print("PARED TREE DICT: ", cur_tree_dict);
-        print("--------");
-
-        print("TIPS IN ORIG TERE: ", len(globs['tips']));
-        print("TIPS EXPECTED TO PRUNE: ", len(spec_to_prune));
-        print("ACTUAL TIPS PRUNED: ", num_pruned);
-        final_tips = [ n for n in cur_tree_dict if cur_tree_dict[n][2] == 'tip' ];
-        print("TIPS IN FINAL TREE: ", len(final_tips));
-        print("--------");
-
-        for n in globs['tips']:
-            if n not in spec_to_prune and n not in final_tips:
-                print("Should NOT have been pared: " + n);
-
-            if n in spec_to_prune and n in final_tips:
-                print("Should have been pared: " + n);
-    # Some debug statements
-    ####################
-        #print(spec_to_prune);
-
-    for spec in na_bl_spec:
-        cur_bl_tree = cur_bl_tree.replace(spec + ":0.0,", spec + ",");
-        cur_bl_tree = cur_bl_tree.replace(spec + ":0.0)", spec + ")");
-    if debug:
-        print("CUR BL TREE: ", cur_bl_tree);
-    # For the next iteration, we need to remove those 0.0 branch lengths added in so
-    # they aren't counted in the distribution when calculating percentiles
-    ####################
-
-    return globs, cur_bl_threshold, cur_bl_tree, branches_to_pare, spec_to_prune, False;
+    return globs, cur_bl_threshold, pruned_tree_str, branches_to_pare, spec_to_prune, False;
     
+
+#############################################################################
+
+def pruneGT(globs, gts, tips_to_prune):
+
+    step = "Pruning gene trees";
+    step_start_time = CORE.report_step(globs, step, False, "In progress...");
+    # Stats update
+
+    pruned_gts = {};
+    gt_pruned, gt_skipped = 0, 0;
+    for gt_id in gts:
+        #print(gt_id);
+        # print("orig st: ", cur_st.labeled_topo_str);
+        cur_gt = gts[gt_id];
+        # Get trees
+
+        if cur_gt.num_tips < 4 or len(cur_gt.tips) - len(tips_to_prune) < 4:
+            gt_skipped += 1;
+            globs['warnings'] += 1;
+            CORE.printWrite(globs['logfilename'], -2, "# WARNING: Gene tree on line " + str(gt_id) + " has too few tips after pruning to match the species tree. Removing from this iteration.");
+            pruned_gts[gt_id] = "NA";
+            continue;
+        
+        # Throw a warning if there aren't enough tips left after pruning the gene tree and skip
+
+        cur_gt = cur_gt.Prune(tips_to_prune);
+        cur_gt = TREE.Tree(cur_gt);
+        #print("prune gt:", cur_gt.tree);
+        #CORE.printWrite(globs['logfilename'], -2, "# INFO: The gene tree on line " + str(gt_id) + " was pruned of the following " + str(len(gt_tips_to_prune)) + " species because they were not in the species tree: " + str(gt_tips_to_prune));
+        pruned_gts[gt_id] = cur_gt;
+        gt_pruned += 1;
+        # Prune gene tree to match tips in species tree if necessary
+
+    step_start_time = CORE.report_step(globs, step, step_start_time, "Success");
+    # Status update
+
+    return globs, pruned_gts;
+
 #############################################################################
