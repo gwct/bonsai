@@ -1,4 +1,4 @@
-<p align="center"><img align="center" width="217" height="175" src="https://github.com/gwct/bonsai/blob/main/img/bonsai.png?raw=true"></p>
+<p align="center"><img align="center" width="500" height="405" src="https://github.com/gwct/bonsai/blob/main/img/bonsai.png?raw=true"></p>
 
 # Bonsai
 
