@@ -270,10 +270,10 @@ def optParse(globs):
             # CF files before pruning
 
             if not globs['use-labels'] or globs['scf-quartets']:
-                globs['st-cf-tree-prune-file'] = os.path.join(globs['outdir'], "pruned-species-tree-cf.tre");
+                globs['st-final-file'] = os.path.join(globs['outdir'], "pruned-species-tree-cf.tre");
                 globs['st-cf-stat-prune-file'] = os.path.join(globs['outdir'], "pruned-species-tree-cf-stats.tab");
             else:
-                globs['st-cf-tree-prune-file'] = os.path.join(globs['outdir'], "pruned-species-tree.tre");
+                globs['st-final-file'] = os.path.join(globs['outdir'], "pruned-species-tree.tre");
         
         ## Output files based on species tree input
         ###############

@@ -2,3 +2,6 @@
 lib/__pycache__/
 *test*
 *.code-workspace
+
+check.txt
+tree-paring/

@@ -10,12 +10,13 @@ import random
 import itertools
 
 #############################################################################
+
 class Tree:
 # The treeParse function takes as input a rooted phylogenetic tree with branch lengths and returns the tree with node labels and a
 # dictionary with usable info about the tree in the following format:
 # node:[branch length (if present), ancestral node, node type, node label (if present)]
 
-    def __init__(self, tree_string, debug=False):
+    def __init__(self, tree_string, get_subtrees=False, debug=False):
 
         tree = tree_string.strip();
         if tree[-1] != ";":
@@ -37,6 +38,7 @@ class Tree:
         self.desc = {};
         self.sis = {};
         self.subtree = {};
+        subtrees = {};
         # Node attributes
 
         self.nodes = [];
@@ -48,6 +50,8 @@ class Tree:
         self.internals = [];
         self.num_internals = 0;
 
+        self.num_polytomies = 0;
+
         self.rooted = "NA";
         self.root = "";
         # Node lists and counts
@@ -55,181 +59,182 @@ class Tree:
         ## Class attributes
         #####
 
-        self.topo_str = remBranchLength(tree);  
-
+        self.topo_str = re.sub('[)][\d\w<>/.eE_:-]+', ')', tree);
+        self.topo_str = re.sub(':[\d.eE-]+', '', self.topo_str);
         ## Remove the branch lengths and node labels from the input tree string
-        #####        
+        #####     
 
         for tip_label in self.topo_str.replace("(","").replace(")","").replace(";","").split(","):
-            self.nodes.append(tip_label);
             self.tips.append(tip_label);
             self.type[tip_label] = 'tip';
-        
         ## Retrieval of the tip labels
         #####
-
-        labeled_tree = "";
-        z = 0;
-        numnodes = 1;
-        while z < (len(tree)-1):
-            labeled_tree += tree[z];
-            if tree[z] == ")":
-                node_label = "<" + str(numnodes) + ">";
-                labeled_tree += node_label;
-                self.nodes.append(node_label);
-                self.internals.append(node_label);
-                self.type[node_label] = 'internal';
-                numnodes += 1;
-            z += 1;
-
-        self.internals = self.internals[:-1];
-        self.root = node_label;
-        # Get the root node as the last node read
-
-        ## Generate internal node labels and add them to the original tree string
-        #####
-
-        self.num_tips = len(self.tips);
-        self.num_internals = len(self.internals);
-        self.num_nodes = len(self.nodes);
-
-        self.rooted = self.checkRooted();
-        
+       
         if debug:
             print();
-            print("TREE:", self.orig);
+            print("ORIGINAL:", self.orig_tree_str);
             print("TOPOLOGY:", self.topo_str);
-            print("NODES:", self.nodes);
-            print("ROOTED:", self.rooted);
-            print("ROOTNODE:", self.root);
         ## Node counting and root checking
         #####
 
-        self.bl = { node : "NA" for node in self.nodes };
-        self.label = { node : "" for node in self.internals + [self.root] };
-        self.anc = { node : "NA" for node in self.nodes };
-
+        # self.bl = { node : "NA" for node in self.nodes };
+        # self.label = { node : "" for node in self.internals + [self.root] };
+        # self.anc = { node : "NA" for node in self.nodes };
         ## With the node lists set, initialize the other node attributes
         #####
 
-        z = 0;
-        numnodes = 1;
-        while z < (len(self.topo_str)-1):
-            self.labeled_topo_str += self.topo_str[z];
-            if self.topo_str[z] == ")":
-                node_label = "<" + str(numnodes) + ">";
-                self.labeled_topo_str += node_label;
-                numnodes += 1;
-            z += 1;
-
-        if debug:
-            print("LABELED TOPOLOGY:", self.labeled_topo_str);
-            print("----------");
-
+        # z = 0;
+        # numnodes = 1;
+        # while z < (len(self.topo_str)-1):
+        #     self.labeled_topo_str += self.topo_str[z];
+        #     if self.topo_str[z] == ")":
+        #         node_label = "<" + str(numnodes) + ">";
+        #         self.labeled_topo_str += node_label;
+        #         numnodes += 1;
+        #     z += 1;
+        # if debug:
+        #     print("LABELED TOPOLOGY:", self.labeled_topo_str);
+        #     print("----------");
         ## Add the generated internal node labels onto the topology string
         #####
 
-        for node in self.nodes:
-        # One loop through the nodes to retrieve all other info
-            if debug:
-                print("NODE:", node);
+        subtrees = {};
 
-            if node in self.tips:
-                if node + ":" in tree:
-                    cur_bl = re.findall(node + ":[\d.Ee-]+", labeled_tree);
-                    cur_bl = cur_bl[0].replace(node + ":", "");
-                    if debug:
-                        print("FOUND BL:", cur_bl);
-                    self.bl[node] = cur_bl;
-                ## If there are branch lengths, parse with regex and add to bl dict
-            ## Parse tips
-             
-            elif node in self.internals:
-                if node + "(" in labeled_tree or node + "," in labeled_tree or node + ")" in labeled_tree:
-                    if debug:
-                        print("NO BL OR LABEL");
-                ## If there's no labels or branch lengths, keep the NAs
+        pairs = re.findall("\([\d\w/.,:_<>-]+\)", tree);
+        node_count = 1;
+        while pairs:
+        # Loop over all pairs of opening an closing parens at each
+        # tree level
 
-                elif node + ":" in labeled_tree:
-                    cur_bl = re.findall(node + ":[\d.Ee-]+", labeled_tree);
-                    cur_bl = cur_bl[0].replace(node + ":", "");
-                    if debug:
-                        print("FOUND BL:", cur_bl);
-                    self.bl[node] = cur_bl;
-                ## If there's only branch lengths, add them to the bl dict                               
+            for pair in pairs:
+            # Loop over every pair in the current set
 
-                else:
+                anc_label = "<" + str(node_count) + ">";
+                self.desc[anc_label] = [];
+                node_count += 1;
+                # The ancestral label
 
-                    cur_label_str = re.findall(node + "[\d\w<>_*+.Ee/-]+:[\d.Ee-]+", labeled_tree);
-                    # If this pattern is found there is both a branch length and a label for the nod
+                node_list = pair.replace("(", "").replace(")", "").split(",");
+                num_nodes = len(node_list);
+                if num_nodes > 2:
+                    self.num_polytomies += 1;
+                # In most cases, the number of branches in a pair will be 2, but
+                # for polytomies it will be more
 
-                    if cur_label_str:
-                        cur_label = cur_label_str[0].replace(node, "");
-                        cur_label = cur_label[:cur_label.index(":")];
-                        #cur_bl = cur_label_str[0].replace(node, "").replace(cur_label, "").replace(":", "");
-                        cur_bl = cur_label_str[0][cur_label_str[0].index(":")+1:]
-                        if debug:
-                            print("FOUND BL AND LABEL:", cur_bl, cur_label);
-                        self.label[node] = cur_label;
-                        self.bl[node] = cur_bl;
-                    ## Parse if there is both bl and label
-                        
+                cur_nodes = [];
+                # A list of nodes in the current pair to add
+                # as descendants for the ancestral node
+
+                for node in node_list:
+                # Loop over each node in the current pair list
+
+                    if ":" in node:
+                        node, bl = node.split(":");
                     else:
-                        cur_label = re.findall(node + "[\w*+.<> -]+", labeled_tree);
-                        cur_label = cur_label[0].replace(node, "");
-                        if debug:
-                            print("FOUND LABEL:", cur_label);
+                        bl = "NA"
+                    # Check if the current node has a branch length
+
+                    if node in self.tips:
+                        self.label[node] = "NA";
+                        self.bl[node] = bl;
+                        # Tip info
+
+                        self.desc[node] = "NA";
+                        # Tips have no descendants
+
+                        if bl != "NA":
+                            subtrees[node] = node + ":" + str(bl);
+                        else:
+                            subtrees[node] = node;
+                        # For tips, the subtree is just that node and its branch length
+                        # If the current node is a tip label, add no label
+                    ## Tips
+
+                    else:
+                        cur_label = re.sub("<[\d]+>", "", node);
+                        node = re.findall("<[\d]+>", node)[0];
+                        # Parse out the provided labels in the tree from
+                        # the ones generated here for all internal nodes
+
+                        self.type[node] = "internal";
+                        self.internals.append(node);
                         self.label[node] = cur_label;
-                    ## Parse if there is only a label
-                ## Check if there are branch lenghts and labels or just labels
-            ## Parse internal nodes
+                        self.bl[node] = bl;
+                        # Node information
 
-            elif node == self.root:
-                possible_label = labeled_tree[labeled_tree.index(node)+len(node):];
-                if possible_label:
-                    self.label[node] = possible_label;
-                continue;
-            ## Parse the root and continue since there is no ancestor to parse in the block below
+                        subtrees[node] = "(";
+                        for d in self.desc[node]:
+                            subtrees[node] += subtrees[d] + ",";
+                        subtrees[node] = subtrees[node][:-1] + ")" + node;
 
-            #####
+                        if cur_label:
+                            subtrees[node] += str(cur_label);
+                        if bl != "NA":
+                            subtrees[node] += ":" + str(bl);
+                        # For internal nodes, the subtree is the combination of the subtrees of its
+                        # descendants
+                        # Add branch lengths and labels as needed
+                    ## Internal nodes
 
-            anc_tree = labeled_tree[labeled_tree.index(node):][1:];
-            # Get the tree string starting at the current node label
-            # Ancestral labels are always to the right of the node label in the text of the tree, 
-            # so we start our scan from the node label
+                    cur_nodes.append(node);
+                    self.nodes.append(node);
+                    self.anc[node] = anc_label;
+                    # Add the ancestral label for the current node
+                ## End node loop
 
-            if debug:
-                print("NODE:", node);
-                print("ANC_TREE:", anc_tree);
-                
-            cpar_count = 0;
-            cpar_need = 1;
+                self.desc[anc_label] = cur_nodes;
+                # Set the descendants of the current ancestor as all nodes in the current pair
 
-            for i in range(len(anc_tree)):
-                if anc_tree[i] == "(":
-                    cpar_need = cpar_need + 1;
-                if anc_tree[i] == ")" and cpar_need != cpar_count:
-                    cpar_count = cpar_count + 1;
-                if anc_tree[i] == ")" and cpar_need == cpar_count:
-                    anc_tree = anc_tree[i+1:];
-                    self.anc[node] = anc_tree[:anc_tree.index(">")+1];
-                    break;
-                # When the parentheses counts match, the ancestor will start at the next position and
-                # end at the >
-            # We find the ancestral label by finding the ) which matches the nesting of the number of ('s found
+                for node in cur_nodes:
+                    self.sis[node] = [ n for n in cur_nodes if n != node ];
+                # Set the sister branches for each node in the current pair
 
-            if debug:
-                print("FOUND ANC:", self.anc[node]);
-                print("---");
+                tree = tree.replace(pair, anc_label);
+                # Replace the current pair with the ancestral label in the tree
+            ## End pairs loop
 
-            #####
-        ## End node loop
+            pairs = re.findall("\([\d\w/.,:_<>-]+\)", tree);
+            # Find all new pairs in the tree
+        # If there are no pairs left, we've reached the root of the tree
+        ## End tree level loop
+
+        ## Main tree parsing loop
+        #####
+
+        self.nodes.append(anc_label);
+        self.internals.append(anc_label);
+        self.type[anc_label] = "internal";
+        self.root = anc_label;
+        self.label[anc_label] = "NA";
+        self.bl[anc_label] = "NA";
+        self.anc[anc_label] = "NA";
+        self.sis[anc_label] = "NA";
+        # Add the final anc label as the root
+
+        if num_nodes > 2:
+            self.rooted = False;
+        else:
+            self.rooted = True;
+        # Check if there is a polytomy at the root for rootedness
+
+        subtrees[anc_label] = "(";
+        for d in self.desc[anc_label]:
+            subtrees[anc_label] += subtrees[d] + ",";
+        subtrees[anc_label] = subtrees[anc_label][:-1] + ")" + anc_label;
+        self.tree_str = subtrees[self.root];
+        # Add the subtree for the root, which ends up being the fully labeled tree
 
         if debug:
-            for node in self.anc:
-                print(node, self.anc[node]);
-
+            print();
+            print("NODES:", self.nodes);
+            print("ROOTED:", self.rooted);
+            print("ROOTNODE:", self.root);
+        ## Root block
         #####
+
+        if get_subtrees:
+            self.subtrees = subtrees;
+        # Save the subtrees if flagged
 
         if all(self.bl[n] == "NA" for n in self.bl):
             self.has_bl = False;
@@ -242,20 +247,275 @@ class Tree:
         else:
             self.has_label = True;
             self.label = { n : self.label[n] if self.label[n] != "" else "NA" for n in self.label };
+        ## Checks for labels and bls
+        #####
 
-        for node in self.nodes:
-            self.desc[node] = self.getDesc(node);
-            self.sis[node] = self.getSister(node);
-        #self.subtree = self.genSubtrees();
-        # A few more useful node attributes to store
+        self.num_tips = len(self.tips);
+        self.num_internals = len(self.internals);
+        self.num_nodes = len(self.nodes);
+        ## Counts
+        #####        
 
-        if not self.rooted:
-            self.internals += [self.root];
-        # For unrooted trees, add the "root" node as an internal node
-        # In this context, the "root" node is simply the last node read
+        if debug:
+            print();
+            self.showAttrib("label","anc","desc","sis");
+            print("FINAL: " + self.tree_str);
+            
+            if get_subtrees:
+                print();
+                for node in self.subtrees:
+                    print(node);
+                    print(self.subtrees[node]);
+                    print();
 
-        #self.tree_str = self.subtree[self.root];
-        # Full tree with node names, labels, and branch lengths
+#############################################################################
+
+# class Tree:
+# # The treeParse function takes as input a rooted phylogenetic tree with branch lengths and returns the tree with node labels and a
+# # dictionary with usable info about the tree in the following format:
+# # node:[branch length (if present), ancestral node, node type, node label (if present)]
+
+#     def __init__(self, tree_string, debug=False):
+
+#         tree = tree_string.strip();
+#         if tree[-1] != ";":
+#             tree += ";";
+#         # Some string handling
+
+#         self.orig_tree_str = tree;
+#         self.topo_str = "";
+#         self.labeled_topo_str = "";
+#         self.tree_str = "";
+#         # Tree string types
+
+#         self.type = {};
+#         self.bl = {};
+#         self.has_bl = "";
+#         self.label = {};
+#         self.has_label = "";
+#         self.anc = {};
+#         self.desc = {};
+#         self.sis = {};
+#         self.subtree = {};
+#         # Node attributes
+
+#         self.nodes = [];
+#         self.num_nodes = 0;
+
+#         self.tips = [];
+#         self.num_tips = 0;
+
+#         self.internals = [];
+#         self.num_internals = 0;
+
+#         self.rooted = "NA";
+#         self.root = "";
+#         # Node lists and counts
+
+#         ## Class attributes
+#         #####
+
+#         self.topo_str = remBranchLength(tree);  
+
+#         ## Remove the branch lengths and node labels from the input tree string
+#         #####        
+
+#         for tip_label in self.topo_str.replace("(","").replace(")","").replace(";","").split(","):
+#             self.nodes.append(tip_label);
+#             self.tips.append(tip_label);
+#             self.type[tip_label] = 'tip';
+        
+#         ## Retrieval of the tip labels
+#         #####
+
+#         labeled_tree = "";
+#         z = 0;
+#         numnodes = 1;
+#         while z < (len(tree)-1):
+#             labeled_tree += tree[z];
+#             if tree[z] == ")":
+#                 node_label = "<" + str(numnodes) + ">";
+#                 labeled_tree += node_label;
+#                 self.nodes.append(node_label);
+#                 self.internals.append(node_label);
+#                 self.type[node_label] = 'internal';
+#                 numnodes += 1;
+#             z += 1;
+
+#         self.internals = self.internals[:-1];
+#         self.root = node_label;
+#         # Get the root node as the last node read
+
+#         ## Generate internal node labels and add them to the original tree string
+#         #####
+
+#         self.num_tips = len(self.tips);
+#         self.num_internals = len(self.internals);
+#         self.num_nodes = len(self.nodes);
+
+#         self.rooted = self.checkRooted();
+        
+#         if debug:
+#             print();
+#             print("TREE:", self.orig);
+#             print("TOPOLOGY:", self.topo_str);
+#             print("NODES:", self.nodes);
+#             print("ROOTED:", self.rooted);
+#             print("ROOTNODE:", self.root);
+#         ## Node counting and root checking
+#         #####
+
+#         self.bl = { node : "NA" for node in self.nodes };
+#         self.label = { node : "" for node in self.internals + [self.root] };
+#         self.anc = { node : "NA" for node in self.nodes };
+
+#         ## With the node lists set, initialize the other node attributes
+#         #####
+
+#         z = 0;
+#         numnodes = 1;
+#         while z < (len(self.topo_str)-1):
+#             self.labeled_topo_str += self.topo_str[z];
+#             if self.topo_str[z] == ")":
+#                 node_label = "<" + str(numnodes) + ">";
+#                 self.labeled_topo_str += node_label;
+#                 numnodes += 1;
+#             z += 1;
+
+#         if debug:
+#             print("LABELED TOPOLOGY:", self.labeled_topo_str);
+#             print("----------");
+
+#         ## Add the generated internal node labels onto the topology string
+#         #####
+
+#         for node in self.nodes:
+#         # One loop through the nodes to retrieve all other info
+#             if debug:
+#                 print("NODE:", node);
+
+#             if node in self.tips:
+#                 if node + ":" in tree:
+#                     cur_bl = re.findall(node + ":[\d.Ee-]+", labeled_tree);
+#                     cur_bl = cur_bl[0].replace(node + ":", "");
+#                     if debug:
+#                         print("FOUND BL:", cur_bl);
+#                     self.bl[node] = cur_bl;
+#                 ## If there are branch lengths, parse with regex and add to bl dict
+#             ## Parse tips
+             
+#             elif node in self.internals:
+#                 if node + "(" in labeled_tree or node + "," in labeled_tree or node + ")" in labeled_tree:
+#                     if debug:
+#                         print("NO BL OR LABEL");
+#                 ## If there's no labels or branch lengths, keep the NAs
+
+#                 elif node + ":" in labeled_tree:
+#                     cur_bl = re.findall(node + ":[\d.Ee-]+", labeled_tree);
+#                     cur_bl = cur_bl[0].replace(node + ":", "");
+#                     if debug:
+#                         print("FOUND BL:", cur_bl);
+#                     self.bl[node] = cur_bl;
+#                 ## If there's only branch lengths, add them to the bl dict                               
+
+#                 else:
+
+#                     cur_label_str = re.findall(node + "[\d\w<>_*+.Ee/-]+:[\d.Ee-]+", labeled_tree);
+#                     # If this pattern is found there is both a branch length and a label for the nod
+
+#                     if cur_label_str:
+#                         cur_label = cur_label_str[0].replace(node, "");
+#                         cur_label = cur_label[:cur_label.index(":")];
+#                         #cur_bl = cur_label_str[0].replace(node, "").replace(cur_label, "").replace(":", "");
+#                         cur_bl = cur_label_str[0][cur_label_str[0].index(":")+1:]
+#                         if debug:
+#                             print("FOUND BL AND LABEL:", cur_bl, cur_label);
+#                         self.label[node] = cur_label;
+#                         self.bl[node] = cur_bl;
+#                     ## Parse if there is both bl and label
+                        
+#                     else:
+#                         cur_label = re.findall(node + "[\w*+.<> -]+", labeled_tree);
+#                         cur_label = cur_label[0].replace(node, "");
+#                         if debug:
+#                             print("FOUND LABEL:", cur_label);
+#                         self.label[node] = cur_label;
+#                     ## Parse if there is only a label
+#                 ## Check if there are branch lenghts and labels or just labels
+#             ## Parse internal nodes
+
+#             elif node == self.root:
+#                 possible_label = labeled_tree[labeled_tree.index(node)+len(node):];
+#                 if possible_label:
+#                     self.label[node] = possible_label;
+#                 continue;
+#             ## Parse the root and continue since there is no ancestor to parse in the block below
+
+#             #####
+
+#             anc_tree = labeled_tree[labeled_tree.index(node):][1:];
+#             # Get the tree string starting at the current node label
+#             # Ancestral labels are always to the right of the node label in the text of the tree, 
+#             # so we start our scan from the node label
+
+#             if debug:
+#                 print("NODE:", node);
+#                 print("ANC_TREE:", anc_tree);
+                
+#             cpar_count = 0;
+#             cpar_need = 1;
+
+#             for i in range(len(anc_tree)):
+#                 if anc_tree[i] == "(":
+#                     cpar_need = cpar_need + 1;
+#                 if anc_tree[i] == ")" and cpar_need != cpar_count:
+#                     cpar_count = cpar_count + 1;
+#                 if anc_tree[i] == ")" and cpar_need == cpar_count:
+#                     anc_tree = anc_tree[i+1:];
+#                     self.anc[node] = anc_tree[:anc_tree.index(">")+1];
+#                     break;
+#                 # When the parentheses counts match, the ancestor will start at the next position and
+#                 # end at the >
+#             # We find the ancestral label by finding the ) which matches the nesting of the number of ('s found
+
+#             if debug:
+#                 print("FOUND ANC:", self.anc[node]);
+#                 print("---");
+
+#             #####
+#         ## End node loop
+
+#         if debug:
+#             for node in self.anc:
+#                 print(node, self.anc[node]);
+
+#         #####
+
+#         if all(self.bl[n] == "NA" for n in self.bl):
+#             self.has_bl = False;
+#         else:
+#             self.has_bl = True;
+#             self.bl = { n : self.bl[n] if self.bl[n] != "NA" else "0.0" for n in self.bl };
+
+#         if all(self.label[n] == "" for n in self.label):
+#             self.has_label = False;
+#         else:
+#             self.has_label = True;
+#             self.label = { n : self.label[n] if self.label[n] != "" else "NA" for n in self.label };
+
+#         for node in self.nodes:
+#             self.desc[node] = self.getDesc(node);
+#             self.sis[node] = self.getSister(node);
+#         #self.subtree = self.genSubtrees();
+#         # A few more useful node attributes to store
+
+#         if not self.rooted:
+#             self.internals += [self.root];
+#         # For unrooted trees, add the "root" node as an internal node
+#         # In this context, the "root" node is simply the last node read
+
+#         #self.tree_str = self.subtree[self.root];
+#         # Full tree with node names, labels, and branch lengths
 
     ##########
 
@@ -807,6 +1067,8 @@ class Tree:
 
             if len(desc_to_prune) == 2:
                 subtrees[node] = node;
+                if self.has_label:
+                    subtrees[node] += str(self.label[node]);
                 if self.has_bl and node != self.root:
                     subtrees[node] += ":" + str(self.bl[node]);
             # If both descendants are tips, then the subtree for this node is the node label
@@ -817,8 +1079,8 @@ class Tree:
                     subtrees[node] += subtrees[d] + ",";
                 subtrees[node] = subtrees[node][:-1] + ")" + node;
 
-                # if self.has_label:
-                #     subtrees[node] += str(self.label[node]);
+                if self.has_label:
+                    subtrees[node] += str(self.label[node]);
                 if self.has_bl and node != self.root:
                     subtrees[node] += ":" + str(self.bl[node]);
             # If neither descendant is a tip, add the two descendant subtrees together as usual
@@ -1039,7 +1301,7 @@ class Tree:
         print("-" * 60);
         ## Seperator
 
-        pad = 40;
+        pad = 60;
         ## Width of columns
 
         valid_attribs = ["type", "length", "label", "desc", "anc", "sis", "clade", "split", "quartet"];
@@ -1083,7 +1345,10 @@ class Tree:
                     # length
 
                     if attrib == "desc":
-                        outline += spacedOut(",".join(self.desc[node]), pad);
+                        if node in self.tips:
+                            outline += spacedOut(self.desc[node], pad);
+                        else:
+                            outline += spacedOut(",".join(self.desc[node]), pad);
                     ## desc
 
                     if attrib == "anc":
@@ -1091,7 +1356,10 @@ class Tree:
                     ## anc
 
                     if attrib == "sis":
-                        outline += spacedOut(",".join(self.sis[node]), pad);
+                        if node == self.root:
+                            outline += spacedOut(self.sis[node], pad);
+                        else:
+                            outline += spacedOut(",".join(self.sis[node]), pad);
                     ## sis
 
                     if attrib == "clade":
@@ -1175,49 +1443,49 @@ def getSubtree(node, tree_str):
 
 #############################################################################
 
-def adjustTreeDict(tree_dict, root):
-# Gets some info about branch lengths from the tree dict and retrieves support
-# label
+# def adjustTreeDict(tree_dict, root):
+# # Gets some info about branch lengths from the tree dict and retrieves support
+# # label
 
-    num_no_supp = 0;
-    # Number of nodes with no support
+#     num_no_supp = 0;
+#     # Number of nodes with no support
 
-    bls = [];
-    # A list of all branch lengths in the tree
+#     bls = [];
+#     # A list of all branch lengths in the tree
 
-    na_bl_spec = [];
-    # A list of species that have no branch length (i.e. tips from Astral)
+#     na_bl_spec = [];
+#     # A list of species that have no branch length (i.e. tips from Astral)
 
-    for n in tree_dict:
-        if n == root:
-            continue;
-        # Skip the root since it won't have a length or support
+#     for n in tree_dict:
+#         if n == root:
+#             continue;
+#         # Skip the root since it won't have a length or support
 
-        if tree_dict[n][0] == "NA":
-            tree_dict[n][0] = 0.0;
-            na_bl_spec.append(n);
-        # If the current node has no branch length, set it as 0.0 in the dictionary for later and
-        # add to the na_bl_spec dict to add the NA back in later. Also don't add this to the list
-        # of bls to calculate the percentile from
-        else:
-            tree_dict[n][0] = float(tree_dict[n][0]);
-            bls.append(tree_dict[n][0]);
-            # Add the floated bl to the bl list to calculate percentile. The NA branch lengths should
-            # be left out
-        # Convert the branch lengths in the tree dict to floats
+#         if tree_dict[n][0] == "NA":
+#             tree_dict[n][0] = 0.0;
+#             na_bl_spec.append(n);
+#         # If the current node has no branch length, set it as 0.0 in the dictionary for later and
+#         # add to the na_bl_spec dict to add the NA back in later. Also don't add this to the list
+#         # of bls to calculate the percentile from
+#         else:
+#             tree_dict[n][0] = float(tree_dict[n][0]);
+#             bls.append(tree_dict[n][0]);
+#             # Add the floated bl to the bl list to calculate percentile. The NA branch lengths should
+#             # be left out
+#         # Convert the branch lengths in the tree dict to floats
 
-        if tree_dict[n][3] == 'NA':
-            num_no_supp += 1;
-            continue;
-        cur_supp = tree_dict[n][3];
-        if "/" in cur_supp:
-            cur_supp = cur_supp.split("/")[1];
-        cur_supp = cur_supp.replace("_", "");
-        tree_dict[n][3] = float(cur_supp);
-        # Parse out the gCF from the supports, skip if there is no support
-        # TODO: This is still very specific to my input format
+#         if tree_dict[n][3] == 'NA':
+#             num_no_supp += 1;
+#             continue;
+#         cur_supp = tree_dict[n][3];
+#         if "/" in cur_supp:
+#             cur_supp = cur_supp.split("/")[1];
+#         cur_supp = cur_supp.replace("_", "");
+#         tree_dict[n][3] = float(cur_supp);
+#         # Parse out the gCF from the supports, skip if there is no support
+#         # TODO: This is still very specific to my input format
 
-    return tree_dict, bls, na_bl_spec;
+#     return tree_dict, bls, na_bl_spec;
 
 #############################################################################
 
@@ -1317,25 +1585,436 @@ def debugTree(globs):
     #tree_str = "((((a,b),c),(((d,e),f),h),i),j);";
     #tree_str = "(mspr:0.0018190933,((mwsb:0.0018060852,((mcas:0.0005908566,mpwk:0.0000009867):0.0000076480,mmus:0.0000009867):0.0000009867):0.0011628549,(((((((((((cgri:0.0152686696,((pcam:0.0012137705,psun:0.0006517732):0.0083093402,prob:0.0087755222):0.0112747594):0.0027806008,maur:0.0194531500):0.0098942322,moch:0.0330046438):0.0022180414,pman:0.0173033334):0.0096202861,((jjac:0.0617468174,itri:0.0714744806):0.0197552895,ngal:0.0425089249):0.0299773246):0.0088542882,mung:0.0286172457):0.0205036203,rnor:0.0311801045):0.0011873972,((rdil:0.0199545510,gdol:0.0117952834):0.0120430301,rsor:0.0202951611):0.0008975499):0.0043168585,(hall:0.0119687298,(pdel:0.0121964374,mnat:0.0120591970):0.0031186198):0.0070437051):0.0091272024,mpah:0.0130568501):0.0093423702,mcar:0.0073123519):0.0001651381):0.0030773597,mspi:0.0005888274);"
     #tree_str = "((jjac:0.1003165447,itri:0.1044182968)0.891:0.010544,(ngal:0.069324448,((pman:0.0406478328,(moch:0.0497980904,((cgri:0.0250402305,maur:0.0328120476)0.668:0.00352051,(prob:0.0144107446,(pcam:0.0028058377,psun:0.0031617491)0.977:0.0129734762)0.984:0.0237499666)0.93:0.0123999599)0.395:0.0020879791)0.901:0.0112615439,(mung:0.0594804999,(rnor:0.0396699258,(rsor:0.0265720262,((rdil:0.019967991,gdol:0.021105056)0.769:0.0085977828,((hall:0.0161568992,(pdel:0.0154147548,mnat:0.0156744369)0.42:0.0026038866)0.86:0.0102277821,(mpah:0.0196602678,(mcar:0.0092755425,((mmus:0.0019110393,mpwk:0.0051314407999999995)0.629:0.002015403,mspi:0.0049513531)0.808:0.0044021912)0.839:0.0074024138)0.821:0.0100953924)0.576:0.0041320338)0.387:0.0023496865)0.671:0.0051006134)0.982:0.0242160502)0.775:0.0069231995)0.98:0.0418120466)0.0:0.010544);";
-    st = Tree(tree_str, debug=False);
+    st = Tree(tree_str, get_subtrees=False, debug=False);
     # Some test trees
 
     #gt_str = "(mspr:0.0016324816,((mwsb:0.0000029568,mcar:0.0153129287):0.0021281260,(mcas:0.0019633923,(mmus:0.0000020851,((((hall:0.0174240612,(pdel:0.0130029362,mnat:0.0129445878):0.0029314306):0.0103158970,((((mung:0.0649440245,(((((((pcam:0.0031385524,psun:0.0033197989):0.0260127153,prob:0.0098921329):0.0196507658,cgri:0.0281001191):0.0019130533,maur:0.0355556774):0.0047041281,moch:0.0402020094):0.0057618080,pman:0.0379711174):0.0163580030,((jjac:0.0776442621,itri:0.1479591099):0.0249499942,ngal:0.0723486821):0.0508154463):0.0069335015):0.0123544338,rnor:0.0413244014):0.0021945352,(rdil:0.0203480143,gdol:0.0196458955):0.0075988551):0.0020342947,rsor:0.0270726716):0.0054596486):0.0105131536,mpah:0.0220127233):0.0095631120,mpwk:0.0009405335):0.0014971022):0.0021557143):0.0016426560):0.0028428833,mspi:0.0008185431);";
 
-    st = Tree(globs['orig-st-str'], debug=False);
+    #st = Tree(globs['orig-st-str'], debug=False);
     #gt = TREE.Tree(gt_str, debug=False);
     #st = TREE.Tree(tree_str);
     
-    st.subtree = st.genSubtrees();
-    st.tree_str = st.subtree[st.root];
-    print(st.tree_str);
+    # st.subtree = st.genSubtrees();
+    # st.tree_str = st.subtree[st.root];
+    # print(st.tree_str);
 
-    #print(globs['orig-st-str']);
+    # #print(globs['orig-st-str']);
 
-    # print(st.labeled_topo_str);
-    # st.showSplit();
-    st.showAttrib("type", "length", "label", "anc", "desc", "sis");
+    # # print(st.labeled_topo_str);
+    # # st.showSplit();
+    # st.showAttrib("label", "anc", "desc");
     print(st.rooted);
     print(st.root);
+    # print(st.tree_str);
+    pruned_tree = st.rmTips()
+    print(pruned_tree);
+
+    # text = open("check.txt", "r").read().split("\n")[:-1];
+    # check = [];
+    # for line in text:
+    #     #print(line);
+    #     spec = line.split("\t");
+    #     if spec[1] == "1":
+    #         check.append(spec[0]);
+
+    # for tip in st.tips:
+    #     #print(tip);
+    #     if tip in ["mm10", "rnor6"]:
+    #         continue;
+    #     tip = tip.split("_");
+    #     tip = tip[0] + " " + tip[1];
+    #     if tip not in check:
+    #         print(tip);
+
+    # print(st.num_tips)
+
+    # 
+    # print(st.root);
+    # print(st.num_tips);
 
 #############################################################################
+
+
+#############################################################################
+class Tree2:
+# The treeParse function takes as input a rooted phylogenetic tree with branch lengths and returns the tree with node labels and a
+# dictionary with usable info about the tree in the following format:
+# node:[branch length (if present), ancestral node, node type, node label (if present)]
+
+    def __init__(self, tree_string, debug=False):
+
+        tree = tree_string.strip();
+        if tree[-1] != ";":
+            tree += ";";
+        # Some string handling
+
+        self.orig_tree_str = tree;
+        self.topo_str = "";
+        self.labeled_topo_str = "";
+        self.tree_str = "";
+        # Tree string types
+
+        self.type = {};
+        self.bl = {};
+        self.has_bl = "";
+        self.label = {};
+        self.has_label = "";
+        self.anc = {};
+        self.desc = {};
+        self.sis = {};
+        self.subtree = {};
+        # Node attributes
+
+        self.nodes = [];
+        self.num_nodes = 0;
+
+        self.tips = [];
+        self.num_tips = 0;
+
+        self.internals = [];
+        self.num_internals = 0;
+
+        self.num_polytomies = 0;
+
+        self.rooted = "NA";
+        self.root = "";
+        # Node lists and counts
+
+        ## Class attributes
+        #####
+
+        self.topo_str = remBranchLength(tree);  
+        ## Remove the branch lengths and node labels from the input tree string
+        #####     
+
+        for tip_label in self.topo_str.replace("(","").replace(")","").replace(";","").split(","):
+            #self.nodes.append(tip_label);
+            self.tips.append(tip_label);
+            self.type[tip_label] = 'tip';
+        print(self.tips);
+        ## Retrieval of the tip labels
+        #####
+
+        self.topo_str = remBranchLength(tree);
+
+        self.num_tips = len(self.tips);
+        self.num_internals = len(self.internals);
+        self.num_nodes = len(self.nodes);
+
+        #self.rooted = self.checkRooted();
+        
+        if debug:
+            print();
+            print("TREE:", self.orig);
+            print("TOPOLOGY:", self.topo_str);
+            print("NODES:", self.nodes);
+            print("ROOTED:", self.rooted);
+            print("ROOTNODE:", self.root);
+        ## Node counting and root checking
+        #####
+
+        self.bl = { node : "NA" for node in self.nodes };
+        self.label = { node : "" for node in self.internals + [self.root] };
+        self.anc = { node : "NA" for node in self.nodes };
+
+        ## With the node lists set, initialize the other node attributes
+        #####
+
+        z = 0;
+        numnodes = 1;
+        while z < (len(self.topo_str)-1):
+            self.labeled_topo_str += self.topo_str[z];
+            if self.topo_str[z] == ")":
+                node_label = "<" + str(numnodes) + ">";
+                self.labeled_topo_str += node_label;
+                numnodes += 1;
+            z += 1;
+
+        if debug:
+            print("LABELED TOPOLOGY:", self.labeled_topo_str);
+            print("----------");
+
+        ## Add the generated internal node labels onto the topology string
+        #####
+
+        print(tree + "\n\n");
+
+        pairs = re.findall("\([\d\w/.,:_<>-]+\)", tree);
+        print(pairs);
+
+        node_count = 1;
+        while pairs:
+            num_pairs = len(pairs);
+            print("num pairs", num_pairs);      
+
+
+
+            for pair in pairs:
+                anc_label = "<" + str(node_count) + ">";
+                node_count += 1;
+
+                print("pair", pair);
+                pair_list = pair.replace("(", "").replace(")", "").split(",");
+                num_nodes = len(pair_list);
+
+                if num_nodes > 2:
+                    self.num_polytomies += 1;
+
+                #print(pair_list);
+                for node in pair_list:
+
+                    print("node", node);
+
+                    if ":" in node:
+                        node, bl = node.split(":");
+                    else:
+                        bl = "NA"
+
+                    
+                        
+                    if node in self.tips:
+                        self.label[node] = "NA";
+                        self.bl[node] = bl;
+                    else:
+                        cur_label = re.sub("<[\d]+>", "", node);
+                        node = node.replace(cur_label, "");
+
+                        self.type[node] = "internal";
+                        self.internals.append(node);
+                        self.label[node] = cur_label;
+                        self.bl[node] = bl;
+
+                    self.nodes.append(node);
+                    self.anc[node] = anc_label;
+
+                    
+                    print("----")
+                
+                tree = tree.replace(pair, anc_label);
+
+            pairs = re.findall("\([\d\w/.,:_<>-]+\)", tree);
+            print(tree + "\n\n");
+            print(pairs);
+
+
+
+            if not pairs:
+                self.type[node] += ",root";
+                self.root = anc_label;
+                if num_nodes > 2:
+                    self.rooted = False;
+                else:
+                    self.rooted = True;
+
+                
+            #
+        print(self.bl);
+        print(self.label);
+        print(self.internals);
+        print(self.anc);
+
+        #print(re.findall("\([\d\w/.,:_-]+\)", tree));
+
+
+
+        #####
+
+        if all(self.bl[n] == "NA" for n in self.bl):
+            self.has_bl = False;
+        else:
+            self.has_bl = True;
+            self.bl = { n : self.bl[n] if self.bl[n] != "NA" else "0.0" for n in self.bl };
+
+        if all(self.label[n] == "" for n in self.label):
+            self.has_label = False;
+        else:
+            self.has_label = True;
+            self.label = { n : self.label[n] if self.label[n] != "" else "NA" for n in self.label };
+
+        for node in self.nodes:
+            self.desc[node] = self.getDesc(node);
+            self.sis[node] = self.getSister(node);
+        #subtrees = self.genSubtrees();
+        # A few more useful node attributes to store
+        print(self.bl);
+
+        self.showAttrib("label", "length", "anc", "desc", "type");
+        self.tree_str = print(self.addBranchLength())
+        print(self.rooted);
+        print(self.root);
+        print(self.tree_str);
+        sys.exit();
+
+    ##########
+
+    def getDesc(self, node):
+        # This function takes a node in the current tree object
+        # and returns a list of the two direct descendant nodes of it.
+
+        if node in self.tips:
+            return [node];
+        else:
+            return [ n for n in self.nodes if self.anc[n] == node ];
+
+    ##########
+
+    def getSister(self, node):
+        # This function takes a node in the current tree object
+        # and returns the other direct descendant of its ancestral node
+
+        if node == self.root:
+            return "NA";
+        anc_desc = self.getDesc(self.anc[node]);
+        return [ n for n in anc_desc if n != node ];
+
+    ##########
+
+    def addBranchLength(self):
+    # Re-writes the branch lengths onto a tree object topology
+
+        tree = self.labeled_topo_str;
+
+        for node in self.nodes:
+            new_node_str = node;
+            if self.has_label and node in self.internals:
+                new_node_str += str(self.label[node]);
+
+            if self.has_bl and node != self.root:
+                new_node_str += ":" + str(self.bl[node]);
+
+            tree = tree.replace(node, new_node_str);
+
+        return tree;
+
+    ##########
+
+    def genSubtrees(self):
+    # Generates sub-tree strings for every node in a tree object
+
+        subtrees = {};
+        # Subtree dict
+        
+        for node in self.tips:
+            if self.has_bl:
+                subtrees[node] = node + ":" + str(self.bl[node]);
+            else:
+                subtrees[node] = node;
+        # For tips, the subtree is just that node and its branch length
+
+        for node in self.internals + [self.root]:
+            subtrees[node] = "(";
+            for d in self.desc[node]:
+                subtrees[node] += subtrees[d] + ",";
+            subtrees[node] = subtrees[node][:-1] + ")" + node;
+
+            if self.has_label:
+                subtrees[node] += str(self.label[node]);
+            if self.has_bl and node != self.root:
+                subtrees[node] += ":" + str(self.bl[node]);
+        # For internal nodes, the subtree is the combination of the subtrees of its
+        # descendants
+
+        return subtrees;
+
+    ##########
+
+    def showAttrib(self, *attrib_list):
+    # This function simply prints out the given tree attributes to the screen
+    # Valid attributes are: "type", "desc", "anc", "sis", "clade", "split", "quartet"
+
+        print("-" * 60);
+        ## Seperator
+
+        pad = 15;
+        ## Width of columns
+
+        valid_attribs = ["type", "length", "label", "desc", "anc", "sis", "clade", "split", "quartet"];
+        ## List of valid attributes
+
+        attrib_list = [ attrib for attrib in attrib_list if attrib in valid_attribs ];
+        attrib_rm = [ attrib for attrib in attrib_list if attrib not in valid_attribs ];
+        if attrib_rm:
+            print("WARNING: The following are not valid Tree attributes to display: " + ",".join(attrib_rm));
+        ## Parse passed attributes and warn if any are invalid
+
+        headers = ["NODE"] + [ attrib.upper() for attrib in valid_attribs if attrib in attrib_list ];
+        outline = [ spacedOut(header, pad) for header in headers ];
+        print("".join(outline).strip());
+        ## Display the attributes as headers
+
+        header_len = (pad * len(attrib_list)) + len(attrib_list[-1]);
+        print("-" * header_len);
+        ## Seperator between headers and rows
+
+        for node in self.nodes:
+            outline = spacedOut(node, pad);
+            for attrib in valid_attribs:
+                if attrib in attrib_list:
+                    if attrib == "type":
+                        if node == self.root:
+                            outline += spacedOut(self.type[node] + ",root", pad);
+                        else:
+                            outline += spacedOut(self.type[node], pad);
+                    ## type
+
+                    if attrib == "label":
+                        if self.type[node] == "tip":
+                            outline += spacedOut("", pad);
+                        else:
+                            outline += spacedOut(self.label[node], pad);
+                    # label
+
+                    if attrib == "length":
+                        outline += spacedOut(self.bl[node], pad);
+                    # length
+
+                    if attrib == "desc":
+                        outline += spacedOut(",".join(self.desc[node]), pad);
+                    ## desc
+
+                    if attrib == "anc":
+                        outline += spacedOut(self.anc[node], pad);
+                    ## anc
+
+                    if attrib == "sis":
+                        outline += spacedOut(",".join(self.sis[node]), pad);
+                    ## sis
+
+                    if attrib == "clade":
+                        clade = str(set(self.getClade(node)));
+                        outline += spacedOut(clade, pad);
+                        if len(clade) > pad:
+                            outline += "\t";
+                    ## clade
+                        
+                    if attrib == "split":
+                        split = str(self.getSplit(node))
+                        outline += spacedOut(split, pad);
+                        if len(split) > pad:
+                            outline += "\t";
+                    ## split
+
+                    if attrib == "quartet":
+                        if self.type[node] == "tip" or node == self.root:
+                            outline += "NA";
+                        else:
+                            #outline += spacedOut("", pad);
+                            quartet = self.getQuartet(node);
+
+                            outline += str(quartet["d1"]);
+
+                            for key in ['d2', 's', 'q4']:
+                                outline += "\t" + str(quartet[key]);
+                    ## quartet
+
+                ## End attrib loop
+            ## End valid loop
+        ## End node loop
+            
+            print(outline.strip());
+        print("-" * 60);
+        ## Seperator      
+
+
+
+
