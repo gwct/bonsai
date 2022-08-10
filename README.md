@@ -45,7 +45,7 @@ python bonsai.py -st [species tree file] -gt [gene trees file] -d [directory wit
 python bonsai.py -st [species tree file] -gt [gene trees file] -i 3
 ```
 
-3. Prune the input species tree using the labels already in the tree tree based on them. Do a maximum of 5 iterations of pruning:
+3. Prune the input species tree using the labels already in the tree. Do a maximum of 5 iterations of pruning:
 
 ```
 python bonsai.py -st [species tree file] -gt [gene trees file] -i 5 --labels
