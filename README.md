@@ -24,31 +24,31 @@ Simply download the program and run it. You may want to add the Referee folder t
 1. Label a species tree:
 
 ```bash
-python bonssai.py -st [species tree file] --labeltree
+python bonsai.py -st [species tree file] --labeltree
 ```
 
 2. Calculate concordance factors using input gene tree and exit:
 
 ```bash
-python bonssai.py -st [species tree file] -gt [gene trees file] --cf
+python bonsai.py -st [species tree file] -gt [gene trees file] --cf
 ```
 
 3. Calculate concordance factors using input gene tree and alignments, and calculate alignment statistics and exit:
 
 ```
-python bonssai.py -st [species tree file] -gt [gene trees file] -d [directory with alignments in FASTA format] --stats --cf
+python bonsai.py -st [species tree file] -gt [gene trees file] -d [directory with alignments in FASTA format] --stats --cf
 ```
 
 3. Use input gene trees to calculate concordance factors and prune the species tree based on them. Do a maximum of 3 iterations of pruning:
 
 ```
-python bonssai.py -st [species tree file] -gt [gene trees file] -i 3
+python bonsai.py -st [species tree file] -gt [gene trees file] -i 3
 ```
 
 3. Prune the input species tree using the labels already in the tree tree based on them. Do a maximum of 5 iterations of pruning:
 
 ```
-python bonssai.py -st [species tree file] -gt [gene trees file] -i 5 --labels
+python bonsai.py -st [species tree file] -gt [gene trees file] -i 5 --labels
 ```
 
 ## Options
