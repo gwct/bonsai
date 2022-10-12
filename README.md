@@ -16,7 +16,7 @@ The program also offers a suite of alignment and concordance factor calculations
 
 ## Installation
 
-Simply download the program and run it. You may want to add the Referee folder to your $PATH variable for ease of use.
+Simply download the program and run it. You may want to add the bonsai folder to your $PATH variable for ease of use.
 ### The only dependency is Python 3+
 
 ## Usage
