@@ -75,7 +75,7 @@ python bonsai.py -st [species tree file] -gt [gene trees file] -i 5 --labels
 | `--appendlog` | Set this to keep the old log file even if `--overwrite` is specified. New log information will instead be appended to the previous log file. |
 | `--version` | Simply print the version and exit. Can also be called as `-version`, `-v`, or `--v`. |
 | `--info` |  Print some meta information about the program and exit. No other options required. |
-| `--quiet` | Set this flag to prevent degenotate from reporting detailed information about each step. |
+| `--quiet` | Set this flag to prevent bonsai from reporting detailed information about each step. |
 
 
 
