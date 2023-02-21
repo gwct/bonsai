@@ -1,9 +1,0 @@
-Micaelemys_namaquensis_MNHN1987009
-Malacomys_longipes_TCD4253
-Leptomys_elegans_ABTC45741
-Mirzamys_louiseae_ABTC133754
-Mastacomys_fuscus_M13957
-Paucidentomys_vermidax_Z21914
-Bullimus_bagobus_JAE1712
-Zyzomys_pedunculatus_Z34925
-Pseudomys_higginsi_UC1421
