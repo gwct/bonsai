@@ -16,8 +16,23 @@ The program also offers a suite of alignment and concordance factor calculations
 
 ## Installation
 
-Simply download the program and run it. You may want to add the bonsai folder to your $PATH variable for ease of use.
+Simply download this repository and run the program. You may want to add the bonsai folder to your `$PATH` variable for ease of use.
+
 ### The only dependency is Python 3+
+
+Download the repository in one of two ways:
+
+1. With git
+
+- Locate the green button labeled **<> Code** above the repository files on this page. 
+- Click it and copy the URL listed in the text field.
+- Open your command prompt on the machine you wish to download bonsai and navigate to where you want to download it.
+- Clone the repository with `git clone [URL]`, where [URL] is what you copied from this page.
+
+2. As a zip archive
+- Locate the green button labeled **<> Code** above the repository files on this page. 
+- Click it and click **Download ZIP** and follow your browser's instructions for downloading a file.
+- Make sure the ZIP archive is located where you want the program to be installed and un-zip the archive. This will differ based on your OS but usually involves right clicking or control-clicking and selecting something like *Extract*.
 
 ## Usage
 
