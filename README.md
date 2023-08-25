@@ -92,5 +92,10 @@ python bonsai.py -st [species tree file] -gt [gene trees file] -i 5 --labels
 | `--info` |  Print some meta information about the program and exit. No other options required. |
 | `--quiet` | Set this flag to prevent bonsai from reporting detailed information about each step. |
 
+## Acknowledgements
+
+This material is based upon work supported by the National Science Foundation under Grant Number (DEB 1754096).
+
+Any opinions, findings, and conclusions or recommendations expressed in this material are those of the author(s) and do not necessarily reflect the views of the National Science Foundation.
 
 
